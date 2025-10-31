@@ -6,12 +6,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Carrega atividades, renderiza cards com lista de participantes e trata inscrições.
   async function fetchActivities() {
-    const res = await fetch("/activities");
+    const res = await fetch("/activities", { cache: "no-store" });
     if (!res.ok) throw new Error("Falha ao carregar atividades");
     return await res.json();
   }
 
   function createParticipantList(participants) {
+    // participants: array of emails
+    // Render a list without bullets and include a delete button for each participant
     const ul = document.createElement("ul");
     ul.className = "participants-list";
     if (!participants || participants.length === 0) {
@@ -22,7 +24,45 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     participants.forEach((p) => {
       const li = document.createElement("li");
-      li.textContent = p;
+      li.className = "participant-item";
+
+      const span = document.createElement("span");
+      span.className = "participant-email";
+      span.textContent = p;
+      li.appendChild(span);
+
+      const btn = document.createElement("button");
+      btn.className = "delete-participant";
+      btn.title = "Unregister participant";
+      btn.innerHTML = "&times;"; // ×
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        // Find activity name by walking DOM up to the activity card
+        const card = li.closest('.activity-card');
+        const activityName = card ? card.querySelector('h4').textContent : null;
+        if (!activityName) return;
+        if (!confirm(`Remover ${p} de ${activityName}?`)) return;
+
+        try {
+          const url = `/activities/${encodeURIComponent(activityName)}/participants?email=${encodeURIComponent(p)}`;
+          const res = await fetch(url, { method: "DELETE", cache: "no-store" });
+          const data = await res.json();
+          if (!res.ok) {
+            showMessage(data.detail || "Erro ao desregistrar.", "error");
+            return;
+          }
+          showMessage(data.message || "Participante desregistrado.", "success");
+
+          // Atualiza UI: buscar atividades novamente e re-renderizar
+          const activities = await fetchActivities();
+          renderActivities(activities);
+        } catch (err) {
+          console.error(err);
+          showMessage("Erro de rede ao desregistrar.", "error");
+        }
+      });
+
+      li.appendChild(btn);
       ul.appendChild(li);
     });
     return ul;
@@ -61,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const count = (info.participants && info.participants.length) || 0;
       ph.textContent = `Participantes (${count})`;
       participantsWrapper.appendChild(ph);
-      participantsWrapper.appendChild(createParticipantList(info.participants));
+  participantsWrapper.appendChild(createParticipantList(info.participants));
       card.appendChild(participantsWrapper);
 
       container.appendChild(card);
@@ -107,7 +147,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const url = `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(
           email
         )}`;
-        const res = await fetch(url, { method: "POST" });
+  const res = await fetch(url, { method: "POST", cache: "no-store" });
         const data = await res.json();
         if (!res.ok) {
           showMessage(data.detail || "Erro ao inscrever.", "error");
